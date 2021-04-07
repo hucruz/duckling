@@ -151,6 +151,8 @@ allExamples = concat
   , examples (datetime (2013, 5, 5, 0, 0, 0) Day)
              [ "el 5 de mayo"
              , "el cinco de mayo"
+             , "5 mayo"
+             , "mayo 5"
              ]
   , examples (datetime (2013, 5, 5, 0, 0, 0) Day)
              [ "el cinco de mayo de 2013"
@@ -160,15 +162,28 @@ allExamples = concat
   , examples (datetime (2013, 7, 4, 0, 0, 0) Day)
              [ "el 4 de julio"
              , "el 4/7"
+             , "4 julio"
+             , "julio 4"
              ]
   , examples (datetime (2013, 3, 3, 0, 0, 0) Day)
              [ "el 3 de marzo"
              , "3 de marzo"
              , "el 3-3"
+             , "3 marzo"
+             , "marzo 3"
              ]
+   , examples (datetime (2013, 11, 30, 0, 0, 0) Day)
+              [ "el 30 de noviembre"
+              , "30 de noviembre"
+              , "el 30-11"
+              , "30 noviembre"
+              , "noviembre 30"
+              ]
   , examples (datetime (2013, 4, 5, 0, 0, 0) Day)
              [ "el 5 de abril"
              , "5 de abril"
+             , "5 abril"
+             , "abril 5"
              ]
   , examples (datetime (2013, 3, 1, 0, 0, 0) Day)
              [ "el 1 de marzo"
@@ -177,6 +192,7 @@ allExamples = concat
              , "el uno de marzo"
              , "primero de marzo"
              , "uno de marzo"
+             , "1 marzo"
              ]
   , examples (datetime (2013, 3, 1, 0, 0, 0) Day)
              [ "1-3-2013"
@@ -186,17 +202,20 @@ allExamples = concat
   , examples (datetime (2013, 2, 16, 0, 0, 0) Day)
              [ "el 16"
              , "16 de febrero"
+             , "16 febrero"
              ]
   , examples (datetime (2013, 2, 17, 0, 0, 0) Day)
              [ "el 17"
              , "17 de febrero"
              , "17-2"
              , "el 17/2"
+             , "17 febrero"
              ]
   , examples (datetime (2013, 2, 20, 0, 0, 0) Day)
              [ "el 20"
              , "20 de febrero"
              , "20/2"
+             , "20 febrero"
              ]
   , examples (datetime (1974, 10, 31, 0, 0, 0) Day)
              [ "31/10/1974"

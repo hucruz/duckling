@@ -81,11 +81,11 @@ ruleMonths = mkRuleMonths
   , ( "Febrero"   , "febrero|feb\\.?")
   , ( "Marzo"     , "marzo|mar\\.?")
   , ( "Abril"     , "abril|abr\\.?")
-  , ( "Mayo"      , "mayo?\\.?")
+  , ( "Mayo"      , "mayo|may\\.?")
   , ( "Junio"     , "junio|jun\\.?")
   , ( "Julio"     , "julio|jul\\.?")
   , ( "Agosto"    , "agosto|ago\\.?")
-  , ( "Septiembre", "septiembre|sept?\\.?")
+  , ( "Septiembre", "septiembre|sept|sep\\.?")
   , ( "Octubre"   , "octubre|oct\\.?")
   , ( "Noviembre" , "noviembre|nov\\.?")
   , ( "Diciembre" , "diciembre|dic\\.?")
@@ -217,6 +217,18 @@ ruleElDayofmonthDeNamedmonth = Rule
     ]
   , prod = \tokens -> case tokens of
       (_:token:_:Token Time td:_) -> Token Time <$> intersectDOM td token
+      _ -> Nothing
+  }
+
+ruleDayofmonthNamedmonth :: Rule
+ruleDayofmonthNamedmonth = Rule
+  { name = "<day-of-month> <named-month>"
+  , pattern =
+    [ Predicate isDOMInteger
+    , Predicate isAMonth
+    ]
+  , prod = \tokens -> case tokens of
+      (token:Token Time td:_) -> Token Time <$> intersectDOM td token
       _ -> Nothing
   }
 
@@ -1577,6 +1589,7 @@ rules =
   , ruleElCycleProximoqueViene
   , ruleElCycleProximoqueVieneTime
   , ruleElDayofmonthDeNamedmonth
+  , ruleDayofmonthNamedmonth
   , ruleElDayofmonthNonOrdinal
   , ruleElProximoCycle
   , ruleElTime
