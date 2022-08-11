@@ -306,12 +306,12 @@ ruleLastNight = Rule
 
 ruleNthTimeOfTime :: Rule
 ruleNthTimeOfTime = Rule
-  { name = "nth <time> of <time>"
+  { name = "nth <day-of-week> of <month-or-greater>"
   , pattern =
     [ dimension Ordinal
-    , dimension Time
+    , Predicate isADayOfWeek
     , regex "of|in"
-    , dimension Time
+    , Predicate $ not . isGrainFinerThan TG.Month
     ]
   , prod = \tokens -> case tokens of
       (Token Ordinal od:Token Time td1:_:Token Time td2:_) -> Token Time .
@@ -321,13 +321,13 @@ ruleNthTimeOfTime = Rule
 
 ruleTheNthTimeOfTime :: Rule
 ruleTheNthTimeOfTime = Rule
-  { name = "the nth <time> of <time>"
+  { name = "the nth <day-of-week> of <month-or-greater>"
   , pattern =
     [ regex "the"
     , dimension Ordinal
-    , dimension Time
+    , Predicate isADayOfWeek
     , regex "of|in"
-    , dimension Time
+    , Predicate $ not . isGrainFinerThan TG.Month
     ]
   , prod = \tokens -> case tokens of
       (_:Token Ordinal od:Token Time td1:_:Token Time td2:_) -> Token Time .
@@ -386,8 +386,7 @@ ruleYearLatent :: Rule
 ruleYearLatent = Rule
   { name = "year (latent)"
   , pattern =
-      [ Predicate $
-        or . sequence [isIntegerBetween (- 10000) 0, isIntegerBetween 25 10000]
+      [ Predicate $ isIntegerBetween 25 10000
       ]
   , prod = \case
       (token:_) -> do
@@ -400,7 +399,7 @@ ruleYearADBC :: Rule
 ruleYearADBC = Rule
   { name = "<year> (bc|ad)"
   , pattern =
-    [ Predicate $ isIntegerBetween (-10000) 10000
+    [ Predicate $ isIntegerBetween 1 10000
     , regex "(a\\.?d\\.?|b\\.?c\\.?)"
     ]
   , prod = \case
@@ -621,8 +620,22 @@ rulePODatTOD = Rule
         Token Time tod@TimeData{TTime.form = Just (TTime.TimeOfDay (Just hours) True)}:_) ->
         tt $ timeOfDayAMPM (start < 12 || hours == 12) tod
       _ -> Nothing
-
   }
+
+rulePODintersectTODlatent :: Rule
+rulePODintersectTODlatent = Rule
+  { name = "<part-of-day> <latent-time-of-day> (latent)"
+  , pattern =
+    [ Predicate isAPartOfDay
+    , Predicate isATimeOfDay
+    ]
+  , prod = \tokens -> case tokens of
+      (Token Time td1:Token Time td2:_)
+        | not (TTime.latent td1) || TTime.latent td2 ->
+        Token Time . mkLatent <$> intersect td1 td2
+      _ -> Nothing
+  }
+
 
 ruleHHMM :: Rule
 ruleHHMM = Rule
@@ -694,40 +707,6 @@ ruleMilitaryAMPM = Rule
       _ -> Nothing
   }
 
-ruleMilitarySpelledOutAMPM :: Rule
-ruleMilitarySpelledOutAMPM = Rule
-  { name = "military spelled out numbers am|pm"
-  , pattern =
-    [ Predicate $ isIntegerBetween 10 12
-    , Predicate $ isIntegerBetween 1 59
-    , regex "(in the )?([ap])(\\s|\\.)?m?\\.?"
-    ]
-    , prod = \tokens -> case tokens of
-        (h:m:Token RegexMatch (GroupMatch (_:ap:_)):_) -> do
-          hh <- getIntValue h
-          mm <- getIntValue m
-          tt $ timeOfDayAMPM (Text.toLower ap == "a") $ hourMinute True hh mm
-        _ -> Nothing
-  }
-
-ruleMilitarySpelledOutAMPM2 :: Rule
-ruleMilitarySpelledOutAMPM2 = Rule
-  { name = "six thirty six a.m."
-  , pattern =
-    [ Predicate $ isIntegerBetween 110 999
-    , regex "(in the )?([ap])(\\s|\\.)?m?\\.?"
-    ]
-  , prod = \tokens -> case tokens of
-      (token:Token RegexMatch (GroupMatch (_:ap:_)):_) -> do
-        n <- getIntValue token
-        m <- case mod n 100 of
-          v | v < 60 -> Just v
-          _          -> Nothing
-        let h = quot n 100
-        tt $ timeOfDayAMPM (Text.toLower ap == "a") $ hourMinute True h m
-      _ -> Nothing
-  }
-
 ruleTODAMPM :: Rule
 ruleTODAMPM = Rule
   { name = "<time-of-day> am|pm"
@@ -752,7 +731,7 @@ ruleHONumeral = Rule
   { name = "<hour-of-day> <integer>"
   , pattern =
     [ Predicate isAnHourOfDay
-    , Predicate $ isIntegerBetween 1 59
+    , Predicate $ isIntegerBetween 10 59
     ]
   , prod = \tokens -> case tokens of
       (Token Time TimeData{TTime.form = Just (TTime.TimeOfDay (Just hours) is12H)
@@ -763,6 +742,26 @@ ruleHONumeral = Rule
         if isLatent
           then tt $ mkLatent $ hourMinute is12H hours n
           else tt $ hourMinute is12H hours n
+      _ -> Nothing
+  }
+
+ruleHONumeralDash :: Rule
+ruleHONumeralDash = Rule
+  { name = "<hour-of-day> - <integer-as-word>"
+  , pattern =
+    [ Predicate isAnHourOfDay
+    , regex "-(?!\\d)"
+    , Predicate $ isIntegerBetween 10 59
+    ]
+  , prod = \tokens -> case tokens of
+      (Token Time TimeData{TTime.form = Just (TTime.TimeOfDay (Just hours) is12H)
+                          ,TTime.latent = isLatent}:
+       _:
+       token:
+       _) -> do
+        n <- getIntValue token
+        let lt = if isLatent then mkLatent else id
+        tt $ lt $ hourMinute is12H hours n
       _ -> Nothing
   }
 
@@ -786,6 +785,30 @@ ruleHONumeralAlt = Rule
           if isLatent
             then tt $ mkLatent $ hourMinute is12H hours n
             else tt $ hourMinute is12H hours n
+      _ -> Nothing
+  }
+
+ruleHONumeralAltDash :: Rule
+ruleHONumeralAltDash = Rule
+  { name = "<hour-of-day> - zero - <integer>"
+  , pattern =
+    [ Predicate isAnHourOfDay
+    , regex "-"
+    , regex "(zero|o(h|u)?)"
+    , regex "-(?!\\d)"
+    , Predicate $ isIntegerBetween 1 9
+    ]
+  , prod = \case
+      (
+        Token Time TimeData{TTime.form = Just (TTime.TimeOfDay
+                                              (Just hours) is12H)
+                          , TTime.latent = isLatent}:
+        _:_:_:
+        token:
+        _) -> do
+          n <- getIntValue token
+          let lt = if isLatent then mkLatent else id
+          tt $ lt $ hourMinute is12H hours n
       _ -> Nothing
   }
 
@@ -1425,7 +1448,7 @@ ruleIntervalTODAMPM = Rule
  { name = "hh(:mm) - <time-of-day> am|pm"
  , pattern =
    [ regex "(?:from )?((?:[01]?\\d)|(?:2[0-3]))([:.]([0-5]\\d))?"
-   , regex "\\-|:|to|th?ru|through|(un)?til(l)?"
+   , regex "\\-|to|th?ru|through|(un)?til(l)?"
    , Predicate isATimeOfDay
    , regex "(in the )?([ap])(\\s|\\.)?m?\\.?"
    ]
@@ -2705,16 +2728,17 @@ rules =
   , ruleAtTOD
   , ruleTODOClock
   , rulePODatTOD
+  , rulePODintersectTODlatent
   , ruleHHMM
   , ruleHHhMM
   , ruleHHMMLatent
   , ruleHHMMSS
   , ruleMilitaryAMPM
-  , ruleMilitarySpelledOutAMPM
-  , ruleMilitarySpelledOutAMPM2
   , ruleTODAMPM
   , ruleHONumeral
+  , ruleHONumeralDash
   , ruleHONumeralAlt
+  , ruleHONumeralAltDash
   , ruleHODHalf
   , ruleHODQuarter
   , ruleNumeralToHOD

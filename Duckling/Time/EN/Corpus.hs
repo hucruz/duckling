@@ -112,6 +112,7 @@ negativeCorpus = (testContext, testOptions, examples)
       , "A4 A5"
       , "palm"
       , "Martin Luther King' day"
+      , "two three"
       ]
 
 latentCorpus :: Corpus
@@ -131,6 +132,7 @@ latentCorpus = (testContext, testOptions {withLatent = True}, xs)
                  ]
       , examples (datetime (2013, 2, 12, 10, 30, 0) Minute)
                  [ "ten thirty"
+                 , "ten-thirty"
                  ]
       , examples (datetime (1974, 1, 1, 0, 0, 0) Year)
                  [ "1974"
@@ -162,9 +164,14 @@ latentCorpus = (testContext, testOptions {withLatent = True}, xs)
              ,  "twelve o three"
              ,  "twelve ou three"
              ,  "twelve oh three"
+             ,  "twelve-zero-three"
+             ,  "twelve-oh-three"
              ]
       , examples (datetimeInterval ((1960, 1, 1, 0, 0, 0), (1962, 1, 1, 0, 0, 0)) Year)
              [ "1960 - 1961"
+             ]
+      , examples (datetime (2013, 2, 12, 20, 15, 0) Minute)
+             [  "tonight 815"
              ]
       ]
 
@@ -593,6 +600,9 @@ allExamples = concat
              ]
   , examples (datetime (2013, 2, 12, 15, 23, 24) Second)
              [ "15:23:24"
+             ]
+  , examples (datetime (2013, 2, 12, 9, 1, 10) Second)
+             [ "9:01:10 AM"
              ]
   , examples (datetime (2013, 2, 12, 11, 45, 0) Minute)
              [ "a quarter to noon"

@@ -27,6 +27,7 @@ import System.Environment (lookupEnv)
 import TextShow
 import Text.Read (readMaybe)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBS8
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -84,7 +85,7 @@ targetsHandler :: Snap ()
 targetsHandler = do
   modifyResponse $ setHeader "Content-Type" "application/json"
   writeLBS $ encode $
-    HashMap.fromList . map dimText $ HashMap.toList supportedDimensions
+    HashMap.fromList $ map dimText $ HashMap.toList supportedDimensions
   where
     dimText :: (Lang, [Seal Dimension]) -> (Text, [Text])
     dimText = (Text.toLower . showt) *** map (\(Seal d) -> toName d)
@@ -109,6 +110,7 @@ parseHandler tzs = do
     Just tx -> do
       let timezone = parseTimeZone tz
       now <- liftIO $ currentReftime tzs timezone
+
       let
         lang = parseLang l
 
@@ -118,9 +120,18 @@ parseHandler tzs = do
           }
         options = Options {withLatent = parseLatent latent}
 
+        cleanupDims =
+            LBS8.filter (/= '\\') -- strip out escape chars people throw in
+          . stripSuffix "\"" -- remove trailing double quote
+          . stripPrefix "\"" -- remote leading double quote
+
+          where
+            stripSuffix suffix str = fromMaybe str $ LBS.stripSuffix suffix str
+            stripPrefix prefix str = fromMaybe str $ LBS.stripPrefix prefix str
+
         dims = fromMaybe (allDimensions lang) $ do
-          queryDims <- ds
-          txtDims <- decode @[Text] $ LBS.fromStrict queryDims
+          queryDims <- fmap (cleanupDims . LBS.fromStrict) ds
+          txtDims <- decode @[Text] queryDims
           pure $ mapMaybe parseDimension txtDims
 
         parsedResult = parse (Text.decodeUtf8 tx) context options dims
@@ -138,7 +149,7 @@ parseHandler tzs = do
         fromCustomName :: Text -> Maybe (Seal Dimension)
         fromCustomName name = HashMap.lookup name m
         m = HashMap.fromList
-          [ -- ("my-dimension", This (CustomDimension MyDimension))
+          [ -- ("my-dimension", Seal (CustomDimension MyDimension))
           ]
 
     parseTimeZone :: Maybe ByteString -> Text
@@ -150,8 +161,8 @@ parseHandler tzs = do
         (mlang, mregion) = case chunks of
           [a, b] -> (readMaybe a :: Maybe Lang, readMaybe b :: Maybe Region)
           _      -> (Nothing, Nothing)
-        chunks = map Text.unpack . Text.split (== '_') . Text.toUpper
-          $ Text.decodeUtf8 x
+        chunks = map Text.unpack
+          $ Text.split (== '_') $ Text.toUpper $ Text.decodeUtf8 x
 
     parseLang :: Maybe ByteString -> Lang
     parseLang l = fromMaybe defaultLang $ l >>=
@@ -160,8 +171,10 @@ parseHandler tzs = do
     parseRefTime :: Text -> ByteString -> DucklingTime
     parseRefTime timezone refTime = makeReftime tzs timezone utcTime
       where
-        msec = read $ Text.unpack $ Text.decodeUtf8 refTime
-        utcTime = posixSecondsToUTCTime $ fromInteger msec / 1000
+        milliseconds = readMaybe $ Text.unpack $ Text.decodeUtf8 refTime
+        utcTime = case milliseconds of
+          Just msec -> posixSecondsToUTCTime $ fromInteger msec / 1000
+          Nothing -> error "Please use milliseconds since epoch for reftime"
 
     parseLatent :: Maybe ByteString -> Bool
     parseLatent x = fromMaybe defaultLatent
